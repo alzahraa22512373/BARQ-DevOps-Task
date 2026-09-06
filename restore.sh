@@ -8,18 +8,22 @@ fi
 PROJECT="${PROJECT:-barq-assessment}"
 SERVICE="${POSTGRES_SERVICE:-postgres}"
 BACKUP_FILE="$1"
+TMP="/tmp/barq_restore.dump"
 
 if [[ ! -s "$BACKUP_FILE" ]]; then
   echo "Backup file not found or empty: $BACKUP_FILE" >&2
   exit 2
 fi
 
-cat "$BACKUP_FILE" | docker compose -p "$PROJECT" exec -T "$SERVICE" pg_restore \
+docker cp "$BACKUP_FILE" "$SERVICE:$TMP"
+docker compose -p "$PROJECT" exec -T "$SERVICE" pg_restore \
   -U barq_app \
   -d barq_tasks \
   --clean \
   --if-exists \
-  --no-owner
+  --no-owner \
+  "$TMP"
+docker compose -p "$PROJECT" exec -T "$SERVICE" rm -f "$TMP"
 
 docker compose -p "$PROJECT" exec -T "$SERVICE" psql \
   -U barq_app \

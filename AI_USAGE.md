@@ -1,15 +1,21 @@
-﻿# AI Usage Documentation
+# AI Usage
 
-## Overview
-This document outlines how AI tools (Large Language Models) were utilized during the BARQ Assessment to accelerate development, troubleshoot issues, and generate documentation.
+AI assistance was used for code review, troubleshooting, script drafting, and documentation structure. The user retained ownership of the final commands, video evidence, and submission.
 
-## 1. Areas of Assistance
-- **Infrastructure as Code (IaC):** Assisted in refactoring docker-compose.yml to include robust healthchecks, dependency conditions (service_healthy), and strict resource constraints.
-- **Scripting:** Provided baseline syntax for the PostgreSQL ackup.sh and estore.sh scripts utilizing pg_dump and pg_restore.
-- **Troubleshooting & Diagnostics:** Helped diagnose race conditions between the NGINX load balancer and the Python application containers, leading to the implementation of proper startup ordering.
-- **Documentation:** Generated structured Markdown files (log_analysis.md, decisions.md, 	roubleshooting.md, security_review.md) based on the project's executed steps and outcomes.
+## Assisted Areas
 
-## 2. Validation & Verification
-- **Human-in-the-loop:** No AI-generated code or configuration was applied without manual review and contextual adaptation.
-- **Practical Testing:** Every configuration change (e.g., database persistence, load balancing, secret management) was actively tested and verified using terminal commands and Docker logs.
-- **Security:** AI interactions were aligned with security best practices, specifically in identifying and mitigating hard-coded credentials.
+- Reviewed the application contract and separated it from the user request.
+- Identified Docker/NGINX/networking issues in `docker-compose.yml` and `nginx/nginx.conf`.
+- Drafted and refined `validate.py`, `failure_test.py`, `backup.sh`, `restore.sh`, and `.github/workflows/ci.yml`.
+- Helped prepare documentation in `README.md`, `troubleshooting.md`, `log_analysis.md`, `decisions.md`, and `security_review.md`.
+
+## Verification
+
+- Ran `python -m unittest discover -s tests -v` successfully.
+- Ran `docker compose -p barq-assessment config --quiet` successfully.
+- Ran `python validate.py --project barq-assessment --wait 120` successfully.
+- Ran `python failure_test.py --project barq-assessment --url http://127.0.0.1:8080` successfully.
+
+## Limits
+
+AI did not fabricate GitHub URLs, commit hashes, CI run links, or video timestamps. Those must be filled from the actual repository, CI run, and recorded video.

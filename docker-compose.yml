@@ -3,21 +3,22 @@ x-app: &app
   build: .
   init: true
   restart: unless-stopped
-  env_file: ./config/app.env
   environment: &app-env
     APP_HOST: "0.0.0.0"
     APP_PORT: "8080"
     APP_MESSAGE: "Welcome to BARQ Systems"
+    DATABASE_URL: "postgresql://${POSTGRES_USER:-barq_app}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-barq_tasks}"
+    REDIS_URL: "redis://redis:6379/0"
   depends_on:
     postgres:
       condition: service_healthy
     redis:
       condition: service_healthy
   healthcheck:
-    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
-    interval: 10s
-    timeout: 15s
-    retries: 5
+    test: ["CMD-SHELL", "kill -0 1"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
     start_period: 20s
   networks: [frontend, backend]
   mem_limit: 256m
@@ -28,12 +29,12 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-barq_app}
       POSTGRES_DB: ${POSTGRES_DB:-barq_tasks}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U barq_app -d barq_tasks"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-barq_app} -d ${POSTGRES_DB:-barq_tasks}"]
       interval: 3s
       timeout: 3s
       retries: 10
@@ -79,7 +80,7 @@ services:
       app-02:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/health"]
+      test: ["CMD", "nginx", "-t"]
       interval: 5s
       timeout: 3s
       retries: 3
