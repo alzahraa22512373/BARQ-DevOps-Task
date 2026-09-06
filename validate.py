@@ -57,21 +57,39 @@ def wait_for_ready(base_url, seconds):
     raise TimeoutError(f"environment was not ready within {seconds}s: {last_error}")
 
 
-def check_container_health(project):
+def inspect_containers(project):
     containers = {}
     for service in SERVICES:
         info = docker_json("inspect", service)[0]
         labels = info.get("Config", {}).get("Labels", {})
         if labels.get("com.docker.compose.project") != project:
             raise AssertionError(f"{service} is not owned by Compose project {project}")
-        state = info["State"]
-        if not state.get("Running"):
-            raise AssertionError(f"{service} is not running")
-        health = state.get("Health", {}).get("Status")
-        if health and health != "healthy":
-            raise AssertionError(f"{service} health is {health}")
         containers[service] = info
     return containers
+
+
+def wait_for_container_health(project, seconds):
+    deadline = time.time() + seconds
+    last_error = None
+    while time.time() < deadline:
+        try:
+            containers = inspect_containers(project)
+            waiting = []
+            for service, info in containers.items():
+                state = info["State"]
+                if not state.get("Running"):
+                    waiting.append(f"{service} not running")
+                    continue
+                health = state.get("Health", {}).get("Status")
+                if health and health != "healthy":
+                    waiting.append(f"{service} health is {health}")
+            if not waiting:
+                return containers
+            last_error = "; ".join(waiting)
+        except Exception as exc:
+            last_error = exc
+        time.sleep(2)
+    raise TimeoutError(f"containers were not healthy within {seconds}s: {last_error}")
 
 
 def check_ports(containers, public_port):
@@ -140,12 +158,12 @@ def check_http_contract(base_url):
 
 def run_step(name, func):
     try:
-        func()
+        result = func()
     except Exception as exc:
         print(f"FAIL: {name}: {exc}")
-        return False
+        return False, None
     print(f"PASS: {name}")
-    return True
+    return True, result
 
 
 def main():
@@ -156,18 +174,24 @@ def main():
     args = parser.parse_args()
     public_port = os.getenv("PUBLIC_PORT", "8080")
     base_url = args.url or f"http://127.0.0.1:{public_port}"
-    containers = {}
     ok = True
-    ok &= run_step("public readiness", lambda: wait_for_ready(base_url, args.wait))
+    containers = None
 
-    def inspect():
-        nonlocal containers
-        containers = check_container_health(args.project)
-
-    ok &= run_step("container health", inspect)
-    ok &= run_step("host port policy", lambda: check_ports(containers, public_port))
-    ok &= run_step("network isolation", lambda: check_networks(containers))
-    ok &= run_step("HTTP/API contract", lambda: check_http_contract(base_url))
+    step_ok, _ = run_step("public readiness", lambda: wait_for_ready(base_url, args.wait))
+    ok &= step_ok
+    step_ok, containers = run_step("container health", lambda: wait_for_container_health(args.project, args.wait))
+    ok &= step_ok
+    if containers:
+        step_ok, _ = run_step("host port policy", lambda: check_ports(containers, public_port))
+        ok &= step_ok
+        step_ok, _ = run_step("network isolation", lambda: check_networks(containers))
+        ok &= step_ok
+    else:
+        print("SKIP: host port policy: container inspection did not pass")
+        print("SKIP: network isolation: container inspection did not pass")
+        ok = False
+    step_ok, _ = run_step("HTTP/API contract", lambda: check_http_contract(base_url))
+    ok &= step_ok
     if not ok:
         print("\nEnvironment validation FAILED.")
         return 1

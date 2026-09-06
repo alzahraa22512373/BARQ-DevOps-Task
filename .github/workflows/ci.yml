@@ -31,7 +31,7 @@ jobs:
         run: docker compose -p barq-assessment build
 
       - name: Start environment
-        run: docker compose -p barq-assessment up -d
+        run: docker compose -p barq-assessment up -d --wait --wait-timeout 120
 
       - name: Validate running environment
         run: python validate.py --project barq-assessment --wait 120
